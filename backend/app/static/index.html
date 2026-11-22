@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>医导 · 医疗导诊 Agent</title>
+<style>
+  :root {
+    --primary: #1565C0;
+    --primary-light: #42A5F5;
+    --danger: #D32F2F;
+    --bg: #F7F9FC;
+    --text: #1A1A1A;
+    --muted: #6b7280;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(21,101,192,.12);
+    max-width: 520px;
+    width: 100%;
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  h1 { text-align: center; font-size: 28px; color: var(--primary); letter-spacing: 2px; }
+  .subtitle { text-align: center; color: var(--muted); font-size: 14px; }
+  .mode-row { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; }
+  .mode-row input { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; }
+  textarea {
+    width: 100%; border: 1.5px solid #d7e3f4; border-radius: 12px;
+    padding: 12px 14px; font-size: 16px; font-family: inherit;
+    resize: vertical; min-height: 72px; outline: none;
+  }
+  textarea:focus { border-color: var(--primary); }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    border: 1px solid var(--primary-light); color: var(--primary);
+    background: #fff; border-radius: 999px; padding: 6px 14px;
+    font-size: 14px; cursor: pointer;
+  }
+  .tag:hover { background: #eef4fc; }
+  .primary-btn {
+    background: var(--primary); color: #fff; border: none; border-radius: 12px;
+    padding: 14px; font-size: 17px; font-weight: 600; cursor: pointer;
+    transition: background .15s;
+  }
+  .primary-btn:hover { background: #0d47a1; }
+  .primary-btn:disabled { background: #9fb8d8; cursor: not-allowed; }
+  .disclaimer { color: var(--muted); font-size: 12px; text-align: center; }
+  .result { display: flex; flex-direction: column; gap: 10px; }
+  .sec-title { font-weight: 700; font-size: 15px; color: var(--muted); }
+  .dept { font-size: 24px; font-weight: 700; color: var(--primary); }
+  .guidance { font-size: 16px; line-height: 1.6; }
+  .step { font-size: 14px; color: #444; }
+  .conf { font-size: 14px; color: #444; }
+  .src { font-size: 12px; color: var(--muted); }
+  .redflag { background: #fdecea; border: 1.5px solid var(--danger); border-radius: 12px; padding: 16px; text-align: center; }
+  .red-title { font-size: 22px; font-weight: 800; color: var(--danger); }
+  .red-hint { font-size: 17px; color: var(--danger); margin-top: 8px; line-height: 1.5; }
+  .error { color: var(--danger); text-align: center; }
+  .hint { color: var(--muted); text-align: center; }
+  .loading { text-align: center; color: var(--primary); }
+
+  /* 老人模式：全局放大 + 极简 */
+  body.elderly { font-size: 20px; }
+  body.elderly .card { padding: 32px 26px; gap: 20px; }
+  body.elderly h1 { font-size: 42px; }
+  body.elderly .subtitle { font-size: 18px; }
+  body.elderly .mode-row { font-size: 22px; }
+  body.elderly .mode-row input { width: 28px; height: 28px; }
+  body.elderly textarea { font-size: 24px; min-height: 120px; padding: 16px; }
+  body.elderly .tags { display: none; }
+  body.elderly .primary-btn { font-size: 26px; padding: 20px; }
+  body.elderly .disclaimer { font-size: 18px; }
+  body.elderly .sec-title { font-size: 20px; }
+  body.elderly .dept { font-size: 34px; }
+  body.elderly .guidance { font-size: 22px; }
+  body.elderly .red-title { font-size: 30px; }
+  body.elderly .red-hint { font-size: 24px; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <h1>医导</h1>
+    <p class="subtitle">帮你判断该挂哪个科，不做诊断</p>
+
+    <div class="mode-row">
+      <label for="elderlyToggle">老人模式</label>
+      <input type="checkbox" id="elderlyToggle">
+    </div>
+
+    <textarea id="symptomInput" placeholder="描述你的症状，如：头痛发热三天"></textarea>
+
+    <div class="tags" id="quickTags">
+      <button class="tag">头痛</button>
+      <button class="tag">发热</button>
+      <button class="tag">咳嗽</button>
+      <button class="tag">腹痛</button>
+      <button class="tag">牙痛</button>
+      <button class="tag">胸痛</button>
+    </div>
+
+    <button class="primary-btn" id="submitBtn">我要看病</button>
+
+    <div class="result" id="result"></div>
+    <p class="disclaimer">本结果仅供参考，不构成诊断，身体不适应及时线下就医。</p>
+  </main>
+
+<script>
+  const input = document.getElementById('symptomInput');
+  const toggle = document.getElementById('elderlyToggle');
+  const result = document.getElementById('result');
+  const submitBtn = document.getElementById('submitBtn');
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  toggle.addEventListener('change', () => {
+    document.body.classList.toggle('elderly', toggle.checked);
+    input.placeholder = toggle.checked ? '哪里不舒服，写在这里' : '描述你的症状，如：头痛发热三天';
+  });
+
+  document.querySelectorAll('.tag').forEach(t => t.addEventListener('click', () => { input.value = t.textContent; }));
+
+  function render(d) {
+    if (d.red_flag) {
+      result.innerHTML = `
+        <div class="redflag">
+          <div class="red-title">请尽快线下就医</div>
+          <div class="red-hint">${esc(d.red_flag_hint)}</div>
+        </div>`;
+      return;
+    }
+    const depts = d.departments.length
+      ? d.departments.map(x => `<div class="dept">${esc(x)}</div>`).join('')
+      : `<div class="dept">${esc(d.guidance)}</div>`;
+    const elderly = toggle.checked;
+    const steps = (!elderly && d.reasoning_steps && d.reasoning_steps.length)
+      ? `<div><div class="sec-title">推理过程</div>${d.reasoning_steps.filter(s => !s.internal).map(s => `<div class="step">· ${esc(s.step)}</div>`).join('')}</div>` : '';
+    const conf = !elderly ? `<div class="conf">置信度：${Math.round(d.confidence * 100)}%</div>` : '';
+    const srcs = (!elderly && d.sources && d.sources.length)
+      ? `<div class="src">来源：${d.sources.map(s => esc(s.title)).join('；')}</div>` : '';
+    result.innerHTML = `
+      <div><div class="sec-title">建议就诊科室</div>${depts}</div>
+      <div><div class="sec-title">就医指引</div><div class="guidance">${esc(d.guidance)}</div></div>
+      ${steps}${conf}${srcs}`;
+  }
+
+  async function submit() {
+    const symptom = input.value.trim();
+    if (!symptom) { result.innerHTML = '<div class="hint">请先描述一下症状</div>'; return; }
+    submitBtn.disabled = true;
+    result.innerHTML = '<div class="loading">正在分析…</div>';
+    try {
+      const resp = await fetch('/api/v1/triage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symptom, elderly_mode: toggle.checked })
+      });
+      const data = await resp.json();
+      render(data);
+    } catch (e) {
+      result.innerHTML = '<div class="error">网络错误，请确认后端已启动</div>';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  }
+
+  submitBtn.addEventListener('click', submit);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
+</script>
+</body>
+</html>
